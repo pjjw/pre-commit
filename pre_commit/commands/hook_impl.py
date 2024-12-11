@@ -113,6 +113,15 @@ def _rev_exists(rev: str) -> bool:
     return not subprocess.call(('git', 'rev-list', '--quiet', rev))
 
 
+# TODO(pjjw): implement
+# we never want pre-push to engage directly against the remote branch for PR branches,
+#  but this is not easily decidable in standard git itself. we need to supplement this with
+# config data to know what branches are PR branches, or hide metadata in the refs somewhere.
+# without this this isn't upstreamable. for now, stub, all branches are review branches.
+def _is_review_branch(rev: str) -> bool:
+    """Returns whether the passed rev is a branch that pre-push should diff against directly"""
+    return True
+
 def _pre_push_ns(
         color: bool,
         args: Sequence[str],
@@ -126,7 +135,7 @@ def _pre_push_ns(
         local_branch, local_sha, remote_branch, remote_sha = parts
         if local_sha == Z40:
             continue
-        elif remote_sha != Z40 and _rev_exists(remote_sha):
+        elif remote_sha != Z40 and _rev_exists(remote_sha) and not _is_review_branch(remote_branch):
             return _ns(
                 'pre-push', color,
                 from_ref=remote_sha, to_ref=local_sha,
@@ -143,6 +152,8 @@ def _pre_push_ns(
             if not ancestors:
                 continue
             else:
+                # with a review-aware flow (where we know the protected branch name) we could
+                # short-circuit and only diff against the merge base, but we don't know that.'
                 first_ancestor = ancestors.splitlines()[0]
                 cmd = ('git', 'rev-list', '--max-parents=0', local_sha)
                 roots = set(subprocess.check_output(cmd).decode().splitlines())
